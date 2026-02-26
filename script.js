@@ -1,9 +1,7 @@
-const API_BASE = "http://127.0.0.1:8000";
-
+const API_BASE = "http://127.0.0.1:8000"; // Change to your IPv4 address if presenting on another device
 let catalogData = [];
 let isLive = true;
 let activeItemName = null;
-let currentStream = null;
 
 const searchInput = document.getElementById('searchInput');
 const dateFilter = document.getElementById('dateFilter');
@@ -19,7 +17,6 @@ const lastKnownViewBtn = document.getElementById('lastKnownViewBtn');
 const naDisplay = document.getElementById('naDisplay');
 const workspaceContainer = document.getElementById('workspaceContainer');
 const workspaceImage = document.getElementById('workspaceImage');
-const liveVideo = document.getElementById('liveVideo');
 const boundingBox = document.getElementById('boundingBox');
 const boxLabel = document.getElementById('boxLabel');
 const actionButtons = document.getElementById('actionButtons');
@@ -36,7 +33,6 @@ async function fetchCatalogData() {
         
         let totalDetections = 0;
 
-       
         catalogData = rawData.map(group => {
             const sortedHistory = group.history.sort((a, b) => new Date(`${a.date} ${a.time}`) - new Date(`${b.date} ${b.time}`));
             totalDetections += sortedHistory.length;
@@ -44,11 +40,10 @@ async function fetchCatalogData() {
             return {
                 name: group.name,
                 history: sortedHistory,
-                latest: sortedHistory[sortedHistory.length - 1] 
+                latest: sortedHistory[sortedHistory.length - 1]
             };
         });
 
-        
         catalogData.sort((a, b) => new Date(`${b.latest.date} ${b.latest.time}`) - new Date(`${a.latest.date} ${a.latest.time}`));
 
         detectionCounter.textContent = totalDetections;
@@ -62,13 +57,13 @@ async function fetchCatalogData() {
                 
                 if (wasAtLatest) {
                     timeScrubber.value = timeScrubber.max;
-                    renderHistoryFrame(activeItem, timeScrubber.value);
+                    renderHistoryFrame(activeItemName, timeScrubber.value);
                 }
             }
         }
 
     } catch (error) {
-        console.error("Backend connection failed. Is the Python server running?");
+        console.error("Backend connection failed. Is the server running?");
     }
 }
 
@@ -106,12 +101,12 @@ function renderCatalog() {
     catalogList.innerHTML = '';
 
     evaluatedData.forEach((item) => {
-        const opacityClass = item.activeMatch ? 'opacity-100' : 'hidden'; // Hide non-matches entirely to clean up the grouped view
+        const opacityClass = item.activeMatch ? 'opacity-100' : 'hidden';
         const activeBg = (activeItemName === item.name && !isLive) ? 'bg-[#1a1a1a] border-l-2 border-blue-500' : 'bg-[#0a0a0a] border-l-2 border-transparent';
         
         const li = document.createElement('li');
         li.className = `border-b border-[#1a1a1a] hover:bg-[#111111] cursor-pointer transition-all duration-300 group flex items-center justify-between px-5 py-4 ${opacityClass} ${activeBg}`;
-        li.onclick = () => showItemPreview(item);
+        li.onclick = () => showItemPreview(item.name);
         
         li.innerHTML = `
             <div class="flex flex-col">
@@ -124,15 +119,10 @@ function renderCatalog() {
     });
 }
 
-function stopWebcam() {
-    if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-        currentStream = null;
-    }
-    liveVideo.classList.add('hidden');
-}
+function renderHistoryFrame(itemName, index) {
+    const item = catalogData.find(i => i.name === itemName);
+    if (!item) return;
 
-function renderHistoryFrame(item, index) {
     const frame = item.history[index];
     workspaceImage.src = frame.img;
     
@@ -151,14 +141,15 @@ function renderHistoryFrame(item, index) {
     scrubberLabel.textContent = isLatest ? 'LATEST' : `${frame.date} | ${frame.time}`;
 }
 
-function showItemPreview(item) {
+function showItemPreview(itemName) {
+    const item = catalogData.find(i => i.name === itemName);
+    if (!item) return;
+
     isLive = false;
     activeItemName = item.name;
-    stopWebcam();
     updateButtonStates('last');
     
     naDisplay.classList.add('hidden');
-    liveVideo.classList.add('hidden');
     workspaceContainer.classList.remove('hidden');
     workspaceImage.classList.remove('hidden');
     actionButtons.classList.remove('hidden');
@@ -167,14 +158,13 @@ function showItemPreview(item) {
     timeScrubber.max = item.history.length - 1;
     timeScrubber.value = item.history.length - 1;
 
-    renderHistoryFrame(item, timeScrubber.value);
+    renderHistoryFrame(activeItemName, timeScrubber.value);
     renderCatalog();
 }
 
 timeScrubber.addEventListener('input', (e) => {
-    const activeItem = catalogData.find(i => i.name === activeItemName);
-    if (activeItem) {
-        renderHistoryFrame(activeItem, e.target.value);
+    if (activeItemName) {
+        renderHistoryFrame(activeItemName, e.target.value);
     }
 });
 
@@ -208,12 +198,11 @@ function toggleLiveFeed() {
     naDisplay.classList.add('hidden');
     workspaceContainer.classList.remove('hidden');
     workspaceImage.classList.remove('hidden');
-    
-    liveVideo.classList.add('hidden');
     actionButtons.classList.add('hidden');
     timelineContainer.classList.add('hidden');
     boundingBox.style.display = 'none';
     
+    // Point the image element directly to the backend stream
     workspaceImage.src = `${API_BASE}/api/stream`;
     renderCatalog();
 }
@@ -221,7 +210,7 @@ function toggleLiveFeed() {
 function toggleLastKnownLocation() {
     if (catalogData.length > 0) {
         const latestItem = catalogData[0];
-        showItemPreview(latestItem);
+        showItemPreview(latestItem.name);
     }
 }
 
@@ -237,4 +226,5 @@ lastKnownViewBtn.addEventListener('click', toggleLastKnownLocation);
 fetchCatalogData();
 toggleLiveFeed();
 
+// Poll silently every 5 seconds
 setInterval(fetchCatalogData, 5000);
