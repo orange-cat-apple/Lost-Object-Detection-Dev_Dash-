@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+sqlalchemy
+ultralytics
+opencv-python-headless
+wget
