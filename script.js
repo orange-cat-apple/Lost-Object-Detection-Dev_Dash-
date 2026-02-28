@@ -1,29 +1,41 @@
-const API_BASE = "http://127.0.0.1:8000"; // Change to your IPv4 address if presenting on another device
+const API_BASE = "http://127.0.0.1:8000"; 
 let catalogData = [];
 let isLive = true;
 let activeItemName = null;
+let showLiveBoxes = false;
 
 const searchInput = document.getElementById('searchInput');
 const dateFilter = document.getElementById('dateFilter');
 const timeFilter = document.getElementById('timeFilter');
 const catalogList = document.getElementById('catalogList');
 const detectionCounter = document.getElementById('detectionCounter');
+const scanTimerDisplay = document.getElementById('scanTimer');
 
 const resetBtn = document.getElementById('resetBtn');
 const topRightLiveBtn = document.getElementById('topRightLiveBtn');
 const liveFeedViewBtn = document.getElementById('liveFeedViewBtn');
 const lastKnownViewBtn = document.getElementById('lastKnownViewBtn');
+const toggleBoxesBtn = document.getElementById('toggleBoxesBtn');
 
 const naDisplay = document.getElementById('naDisplay');
 const workspaceContainer = document.getElementById('workspaceContainer');
 const workspaceImage = document.getElementById('workspaceImage');
 const boundingBox = document.getElementById('boundingBox');
 const boxLabel = document.getElementById('boxLabel');
-const actionButtons = document.getElementById('actionButtons');
 
 const timelineContainer = document.getElementById('timelineContainer');
 const timeScrubber = document.getElementById('timeScrubber');
 const scrubberLabel = document.getElementById('scrubberLabel');
+
+let countdown = 10;
+
+setInterval(() => {
+    countdown--;
+    if (countdown <= 0) {
+        countdown = 10;
+    }
+    scanTimerDisplay.textContent = countdown;
+}, 1000);
 
 async function fetchCatalogData() {
     try {
@@ -62,9 +74,7 @@ async function fetchCatalogData() {
             }
         }
 
-    } catch (error) {
-        console.error("Backend connection failed. Is the server running?");
-    }
+    } catch (error) {}
 }
 
 function updateButtonStates(activeView) {
@@ -152,8 +162,8 @@ function showItemPreview(itemName) {
     naDisplay.classList.add('hidden');
     workspaceContainer.classList.remove('hidden');
     workspaceImage.classList.remove('hidden');
-    actionButtons.classList.remove('hidden');
     timelineContainer.classList.remove('hidden');
+    toggleBoxesBtn.classList.add('hidden');
 
     timeScrubber.max = item.history.length - 1;
     timeScrubber.value = item.history.length - 1;
@@ -168,6 +178,16 @@ timeScrubber.addEventListener('input', (e) => {
     }
 });
 
+toggleBoxesBtn.addEventListener('click', () => {
+    showLiveBoxes = !showLiveBoxes;
+    toggleBoxesBtn.textContent = showLiveBoxes ? 'BOXES: ON' : 'BOXES: OFF';
+    toggleBoxesBtn.classList.toggle('active', showLiveBoxes);
+    
+    if (isLive) {
+        workspaceImage.src = `${API_BASE}/api/stream?annotated=${showLiveBoxes}`;
+    }
+});
+
 async function resetSystem() {
     try {
         const res = await fetch(`${API_BASE}/api/reset`, { method: 'POST' });
@@ -175,9 +195,10 @@ async function resetSystem() {
             catalogData = [];
             renderCatalog();
             detectionCounter.textContent = '0';
+            countdown = 10; 
+            scanTimerDisplay.textContent = countdown;
             workspaceContainer.classList.add('hidden');
             naDisplay.classList.remove('hidden');
-            actionButtons.classList.add('hidden');
             timelineContainer.classList.add('hidden');
             searchInput.value = '';
             dateFilter.value = '';
@@ -185,9 +206,7 @@ async function resetSystem() {
             updateButtonStates('');
             toggleLiveFeed();
         }
-    } catch (error) {
-        console.error("Failed to reset");
-    }
+    } catch (error) {}
 }
 
 function toggleLiveFeed() {
@@ -198,12 +217,11 @@ function toggleLiveFeed() {
     naDisplay.classList.add('hidden');
     workspaceContainer.classList.remove('hidden');
     workspaceImage.classList.remove('hidden');
-    actionButtons.classList.add('hidden');
     timelineContainer.classList.add('hidden');
     boundingBox.style.display = 'none';
+    toggleBoxesBtn.classList.remove('hidden');
     
-    // Point the image element directly to the backend stream
-    workspaceImage.src = `${API_BASE}/api/stream`;
+    workspaceImage.src = `${API_BASE}/api/stream?annotated=${showLiveBoxes}`;
     renderCatalog();
 }
 
@@ -226,5 +244,4 @@ lastKnownViewBtn.addEventListener('click', toggleLastKnownLocation);
 fetchCatalogData();
 toggleLiveFeed();
 
-// Poll silently every 5 seconds
 setInterval(fetchCatalogData, 5000);
