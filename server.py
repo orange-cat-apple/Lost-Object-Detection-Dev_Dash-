@@ -4,7 +4,7 @@ import datetime
 import threading
 import cv2
 from fastapi import FastAPI, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
@@ -52,12 +52,13 @@ def get_db():
     finally:
         db.close()
 
-model = YOLO("best.pt") # Ensure this is your custom trained model
+model = YOLO("model.pt")
 
-# --- VIDEO CAPTURE SETUP ---
-VIDEO_PATH = "demo.mp4" # CHANGE THIS TO YOUR EXACT VIDEO FILE NAME
+VIDEO_PATH = "demo.mp4"
 cap = cv2.VideoCapture(VIDEO_PATH)
 latest_frame = None
+annotated_frame = None
+MIN_CONFIDENCE = 0.60
 
 def capture_loop():
     global latest_frame
@@ -66,61 +67,74 @@ def capture_loop():
     while True:
         ret, frame = cap.read()
         if not ret:
-            # Video ended, loop back to the beginning
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
+        
+        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        
         latest_frame = frame.copy()
-        time.sleep(delay) # Keep video playing at normal speed
+        time.sleep(delay)
 
 threading.Thread(target=capture_loop, daemon=True).start()
 
 def detection_loop():
+    global annotated_frame
     db = SessionLocal()
+    last_save_time = time.time()
+    
     while True:
         if latest_frame is not None:
-            # Pass a copy to YOLO to avoid threading conflicts
             frame_to_process = latest_frame.copy() 
             results = model(frame_to_process, verbose=False)
             
-            if len(results[0].boxes) > 0:
-                ts = int(time.time())
-                fname = f"snap_{ts}.jpg"
-                filepath = os.path.join(UPLOAD_DIR, fname)
-                cv2.imwrite(filepath, frame_to_process)
+            annotated_frame = results[0].plot()
+            
+            current_time = time.time()
+            if current_time - last_save_time >= 10:
+                valid_boxes = [box for box in results[0].boxes if box.conf[0].item() >= MIN_CONFIDENCE]
                 
-                for box in results[0].boxes:
-                    label = model.names[int(box.cls[0])].title()
-                    x1, y1, x2, y2 = box.xyxyn[0].tolist()
+                if len(valid_boxes) > 0:
+                    ts = int(current_time)
+                    fname = f"snap_{ts}.jpg"
+                    filepath = os.path.join(UPLOAD_DIR, fname)
+                    cv2.imwrite(filepath, frame_to_process)
                     
-                    w = (x2 - x1) * 100
-                    h = (y2 - y1) * 100
-                    cx = x1 * 100
-                    cy = y1 * 100
-                    
-                    new_entry = SpatialLog(
-                        object_name=label,
-                        x_coord=round(cx, 2),
-                        y_coord=round(cy, 2),
-                        w_coord=round(w, 2),
-                        h_coord=round(h, 2),
-                        image_filename=fname
-                    )
-                    db.add(new_entry)
-                db.commit()
-        time.sleep(10) # Run detection every 10 seconds
+                    for box in valid_boxes:
+                        label = model.names[int(box.cls[0])].title()
+                        x1, y1, x2, y2 = box.xyxyn[0].tolist()
+                        
+                        w = (x2 - x1) * 100
+                        h = (y2 - y1) * 100
+                        cx = x1 * 100
+                        cy = y1 * 100
+                        
+                        new_entry = SpatialLog(
+                            object_name=label,
+                            x_coord=round(cx, 2),
+                            y_coord=round(cy, 2),
+                            w_coord=round(w, 2),
+                            h_coord=round(h, 2),
+                            image_filename=fname
+                        )
+                        db.add(new_entry)
+                    db.commit()
+                last_save_time = current_time
+        time.sleep(0.05)
 
 threading.Thread(target=detection_loop, daemon=True).start()
 
-def generate_frames():
+def generate_frames(annotated=False):
+    global latest_frame, annotated_frame
     while True:
-        if latest_frame is not None:
-            ret, buffer = cv2.imencode('.jpg', latest_frame)
+        frame_to_stream = annotated_frame if annotated else latest_frame
+        if frame_to_stream is not None:
+            ret, buffer = cv2.imencode('.jpg', frame_to_stream)
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         time.sleep(0.05)
 
 @app.get("/api/stream")
-def video_feed():
-    return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+def video_feed(annotated: bool = False):
+    return StreamingResponse(generate_frames(annotated), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/api/data")
 def get_data(db: Session = Depends(get_db)):
@@ -155,3 +169,15 @@ def reset_data(db: Session = Depends(get_db)):
     for file in os.listdir(UPLOAD_DIR):
         os.remove(os.path.join(UPLOAD_DIR, file))
     return {"status": "cleared"}
+
+@app.get("/")
+def serve_index():
+    return FileResponse("index.html")
+
+@app.get("/style.css")
+def serve_css():
+    return FileResponse("style.css")
+
+@app.get("/script.js")
+def serve_js():
+    return FileResponse("script.js")
