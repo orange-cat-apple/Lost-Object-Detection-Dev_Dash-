@@ -30,7 +30,8 @@ git clone \[https://github.com/RealRuthvik/Lost-Object-Detection\](https://githu
 
 2. **Install dependencies:**  
    Ensure you have Python installed. Install the required packages:
-   Insatll the dependencies from requirements.txt
+
+ Insatll the dependencies from requirements.txt
    
 
 4. **Download required assets:**  
