@@ -30,10 +30,10 @@ git clone \[https://github.com/RealRuthvik/Lost-Object-Detection\](https://githu
 
 2. **Install dependencies:**  
    Ensure you have Python installed. Install the required packages:
+   Insatll the dependencies from requirements.txt
+   
 
-pip install fastapi uvicorn opencv-python ultralytics sqlalchemy
-
-3. **Download required assets:**  
+4. **Download required assets:**  
 * Download the model.pt file from the [Google Drive link](https://drive.google.com/file/d/12F9kFGWU75lp0WYr6F8ijPwvAB34KtTE/view).  
 * Place model.pt in the root directory of the project.  
 * Add a demo video file named demo.mp4 from [this Google Drive folder](https://drive.google.com/drive/folders/1ohFCQBKuIucftmpY3E44RqKcELh7SHiz) to the root directory.  
