@@ -8,13 +8,12 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from ultralytics import YOLO
 
 DATABASE_URL = "sqlite:///./spatial_search.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 class SpatialLog(Base):
@@ -25,6 +24,7 @@ class SpatialLog(Base):
     y_coord = Column(Float)
     w_coord = Column(Float)
     h_coord = Column(Float)
+    confidence = Column(Float)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     image_filename = Column(String)
 
@@ -40,9 +40,7 @@ app.add_middleware(
 )
 
 UPLOAD_DIR = "uploads"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 def get_db():
@@ -56,110 +54,159 @@ model = YOLO("model.pt")
 
 VIDEO_PATH = "demo.mp4"
 cap = cv2.VideoCapture(VIDEO_PATH)
+
 latest_frame = None
 annotated_frame = None
-MIN_CONFIDENCE = 0.60
+
+SCAN_INTERVAL = 5
+PLAYBACK_SPEED = 75
+
+CONFIDENCE_THRESHOLDS = {
+    "Keys": 0.55,
+    "Wallet": 0.01,
+    "Default": 0.60
+}
+
+last_save_time = time.time()
+video_remaining_sec = 0
+total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+fps = cap.get(cv2.CAP_PROP_FPS) or 30
 
 def capture_loop():
-    global latest_frame
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    delay = 1 / fps
+    global latest_frame, video_remaining_sec
+
     while True:
         ret, frame = cap.read()
+
         if not ret:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
-        
+
+        current_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame + (PLAYBACK_SPEED - 1))
+
+        rem_frames = total_frames - current_frame
+        video_remaining_sec = int((rem_frames / fps) / PLAYBACK_SPEED)
+
         frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        
         latest_frame = frame.copy()
-        time.sleep(delay)
+
+        time.sleep(1 / fps)
 
 threading.Thread(target=capture_loop, daemon=True).start()
 
 def detection_loop():
-    global annotated_frame
+    global annotated_frame, last_save_time
     db = SessionLocal()
-    last_save_time = time.time()
-    
+
     while True:
         if latest_frame is not None:
-            frame_to_process = latest_frame.copy() 
+            frame_to_process = latest_frame.copy()
             results = model(frame_to_process, verbose=False)
-            
+
             annotated_frame = results[0].plot()
-            
+
+            best_detections = {}
+
+            for box in results[0].boxes:
+                label = model.names[int(box.cls[0])].title()
+                conf = float(box.conf[0])
+
+                threshold = CONFIDENCE_THRESHOLDS.get(label, CONFIDENCE_THRESHOLDS["Default"])
+
+                if conf >= threshold:
+                    if label not in best_detections or conf > best_detections[label]["conf"]:
+                        best_detections[label] = {
+                            "box": box,
+                            "conf": conf
+                        }
+
             current_time = time.time()
-            if current_time - last_save_time >= 10:
-                valid_boxes = [box for box in results[0].boxes if box.conf[0].item() >= MIN_CONFIDENCE]
-                
-                if len(valid_boxes) > 0:
+            if current_time - last_save_time >= SCAN_INTERVAL:
+
+                if best_detections:
                     ts = int(current_time)
                     fname = f"snap_{ts}.jpg"
                     filepath = os.path.join(UPLOAD_DIR, fname)
                     cv2.imwrite(filepath, frame_to_process)
-                    
-                    for box in valid_boxes:
-                        label = model.names[int(box.cls[0])].title()
+
+                    for label, data in best_detections.items():
+                        box = data["box"]
+                        conf = data["conf"]
+
                         x1, y1, x2, y2 = box.xyxyn[0].tolist()
-                        
-                        w = (x2 - x1) * 100
-                        h = (y2 - y1) * 100
-                        cx = x1 * 100
-                        cy = y1 * 100
-                        
-                        new_entry = SpatialLog(
+
+                        db.add(SpatialLog(
                             object_name=label,
-                            x_coord=round(cx, 2),
-                            y_coord=round(cy, 2),
-                            w_coord=round(w, 2),
-                            h_coord=round(h, 2),
+                            x_coord=round(x1 * 100, 2),
+                            y_coord=round(y1 * 100, 2),
+                            w_coord=round((x2 - x1) * 100, 2),
+                            h_coord=round((y2 - y1) * 100, 2),
+                            confidence=round(conf, 4),
                             image_filename=fname
-                        )
-                        db.add(new_entry)
+                        ))
+
                     db.commit()
+
                 last_save_time = current_time
+
         time.sleep(0.05)
 
 threading.Thread(target=detection_loop, daemon=True).start()
 
 def generate_frames(annotated=False):
-    global latest_frame, annotated_frame
     while True:
         frame_to_stream = annotated_frame if annotated else latest_frame
+
         if frame_to_stream is not None:
-            ret, buffer = cv2.imencode('.jpg', frame_to_stream)
-            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            _, buffer = cv2.imencode('.jpg', frame_to_stream)
+            yield (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' +
+                buffer.tobytes() +
+                b'\r\n'
+            )
+
         time.sleep(0.05)
 
 @app.get("/api/stream")
 def video_feed(annotated: bool = False):
-    return StreamingResponse(generate_frames(annotated), media_type="multipart/x-mixed-replace; boundary=frame")
+    return StreamingResponse(
+        generate_frames(annotated),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+@app.get("/api/status")
+def get_status():
+    elapsed = time.time() - last_save_time
+    remaining_sec = max(0.0, SCAN_INTERVAL - elapsed)
+    remaining_ms = int(remaining_sec * 1000)
+
+    return {
+        "scan_remaining_ms": remaining_ms,
+        "video_remaining_sec": video_remaining_sec
+    }
 
 @app.get("/api/data")
 def get_data(db: Session = Depends(get_db)):
     logs = db.query(SpatialLog).order_by(SpatialLog.timestamp.asc()).all()
-    
+
     grouped_data = {}
     for log in logs:
-        name = log.object_name
-        if name not in grouped_data:
-            grouped_data[name] = {"name": name, "history": []}
-        
-        dt = log.timestamp
-        time_str = dt.strftime("%H:%M:%S")
-        date_str = dt.strftime("%Y-%m-%d")
-        
-        grouped_data[name]["history"].append({
-            "time": time_str,
-            "date": date_str,
+        if log.object_name not in grouped_data:
+            grouped_data[log.object_name] = {"name": log.object_name, "history": []}
+
+        grouped_data[log.object_name]["history"].append({
+            "time": log.timestamp.strftime("%H:%M:%S"),
+            "date": log.timestamp.strftime("%Y-%m-%d"),
             "x": log.x_coord,
             "y": log.y_coord,
             "w": log.w_coord,
             "h": log.h_coord,
+            "conf": log.confidence,
             "img": f"http://127.0.0.1:8000/uploads/{log.image_filename}"
         })
-        
+
     return list(grouped_data.values())
 
 @app.post("/api/reset")
