@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://fullord-spatial-search.hf.space";
 let catalogData = [];
 let isLive = true;
 let activeItemName = null;
@@ -236,3 +236,4 @@ topRightLiveBtn.addEventListener('click', toggleLiveFeed);
 fetchCatalogData();
 toggleLiveFeed();
 setInterval(fetchCatalogData, 5000);
+
