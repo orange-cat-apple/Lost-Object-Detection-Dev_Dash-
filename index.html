@@ -2,89 +2,140 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevDash Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="flex flex-col h-screen w-full overflow-hidden bg-[#0a0a0a] text-[#eeeeee] font-sans antialiased">
 
-    <header class="flex justify-between items-center px-8 py-5 bg-[#0a0a0a] border-b border-[#1a1a1a]">
-        <div class="text-2xl font-black tracking-tighter text-white">DevDash Demo</div>
+<header class="flex justify-between items-center px-8 py-5 bg-[#0a0a0a] border-b border-[#1a1a1a]">
 
-        <div class="flex items-center gap-4">
-            <div class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mr-4 border border-blue-900 bg-blue-900/20 px-3 py-1 rounded-sm">
-                Next Scan In: <span id="scanTimer">10</span>
-            </div>
-            
-            <div class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mr-4">
-                Total Detections: <span id="detectionCounter" class="text-white">0</span>
-            </div>
-
-            <button id="topRightLiveBtn" class="rounded-full border border-[#333] px-5 py-2 text-[10px] font-bold tracking-widest btn-outline">
-                LIVE FEED
-            </button>
-            <button id="resetBtn" class="rounded-full bg-white text-black px-5 py-2 text-[10px] font-bold tracking-widest hover:bg-gray-200 transition-colors">
-                RESET SYSTEM
-            </button>
-        </div>
-    </header>
-
-    <div class="flex flex-1 h-full overflow-hidden">
-        <main class="flex-1 flex flex-col items-center justify-center bg-[#111111] p-8">
-            
-            <div class="w-full max-w-5xl mb-4 flex justify-start z-10">
-                <div class="flex border border-[#222] rounded-full overflow-hidden bg-[#0a0a0a]">
-                    <button id="liveFeedViewBtn" class="px-6 py-2 text-[10px] font-bold tracking-widest btn-toggle">LIVE FEED</button>
-                    <button id="lastKnownViewBtn" class="px-6 py-2 text-[10px] font-bold tracking-widest border-l border-[#222] btn-toggle">LAST KNOWN LOCATION</button>
-                    <button id="toggleBoxesBtn" class="px-6 py-2 text-[10px] font-bold tracking-widest border-l border-[#222] btn-toggle">BOXES: OFF</button>
-                </div>
-            </div>
-
-            <div class="w-full max-w-5xl aspect-video bg-black relative flex items-center justify-center overflow-hidden shadow-2xl rounded-sm">
-                <div id="naDisplay" class="text-[#444] text-sm tracking-widest uppercase font-bold hidden">Awaiting Feed</div>
-                
-                <div id="workspaceContainer" class="hidden w-full h-full relative">
-                    <video id="liveVideo" autoplay playsinline muted class="hidden w-full h-full object-cover"></video>
-                    
-                    <img id="workspaceImage" src="" class="hidden w-full h-full object-cover">
-                    
-                    <div id="boundingBox" class="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none hidden transition-all duration-200">
-                        <div id="boxLabel" class="absolute -top-6 left-[-2px] bg-blue-500 px-2 py-1 text-[10px] text-white font-bold uppercase tracking-wider"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="timelineContainer" class="w-full max-w-5xl mt-4 hidden flex items-center gap-4 bg-[#0a0a0a] p-4 border border-[#222] rounded-md shadow-lg">
-                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Timeline</span>
-                <input type="range" id="timeScrubber" class="flex-1 accent-blue-500 h-1 bg-[#222] rounded-lg appearance-none cursor-pointer" min="0" max="0" value="0">
-                <span id="scrubberLabel" class="text-[10px] text-blue-500 font-bold tracking-widest min-w-[120px] text-right">LATEST</span>
-            </div>
-        </main>
-
-        <aside class="w-[300px] bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col z-10">
-            <div class="p-4 border-b border-[#1a1a1a] flex flex-col gap-3">
-                <input type="text" id="searchInput" 
-                    class="w-full bg-[#111111] border border-[#222] text-white text-[11px] px-3 py-2 focus:outline-none focus:border-[#444] transition-colors duration-300 rounded-sm"
-                    placeholder="Filter Catalogued Items...">
-                
-                <div class="flex gap-2">
-                    <input type="text" id="dateFilter" 
-                        placeholder="Date (e.g. 2026)"
-                        class="w-1/2 bg-[#111111] border border-[#222] text-white text-[10px] px-2 py-2 focus:outline-none focus:border-[#444] placeholder-[#444] transition-colors duration-300 rounded-sm">
-                    <input type="text" id="timeFilter" 
-                        placeholder="Time (e.g. 14:)"
-                        class="w-1/2 bg-[#111111] border border-[#222] text-white text-[10px] px-2 py-2 focus:outline-none focus:border-[#444] placeholder-[#444] transition-colors duration-300 rounded-sm">
-                </div>
-            </div>
-
-            <div class="flex-1 overflow-y-auto sidebar-scroll">
-                <ul id="catalogList" class="flex flex-col">
-                </ul>
-            </div>
-        </aside>
+    <div class="text-2xl font-black tracking-tighter text-white">
+        DevDash Demo
     </div>
 
-    <script src="script.js"></script>
+    <div class="flex items-center gap-4">
+
+        <div class="text-[10px] font-bold uppercase tracking-widest text-[#888] border border-[#222] bg-[#111] px-3 py-1 rounded-sm">
+            Demo Time Left:
+            <span id="videoTimer" class="text-white">00:00</span>
+        </div>
+
+        <div class="text-[10px] font-bold uppercase tracking-widest text-[#888] border border-[#222] bg-[#111] px-3 py-1 rounded-sm">
+            Next Scan In:
+            <span id="scanTimer" class="text-white">10000</span> ms
+        </div>
+
+        <div class="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+            Total Detections:
+            <span id="detectionCounter" class="text-white">0</span>
+        </div>
+
+        <button id="topRightLiveBtn"
+            class="rounded-full border border-[#333] px-5 py-2 text-[10px] font-bold tracking-widest btn-outline">
+            LIVE FEED
+        </button>
+
+        <button id="toggleBoxesBtn"
+            class="rounded-full border border-[#333] px-5 py-2 text-[10px] font-bold tracking-widest btn-outline">
+            BOXES: OFF
+        </button>
+
+        <button id="resetBtn"
+            class="rounded-full bg-white text-black px-5 py-2 text-[10px] font-bold tracking-widest hover:bg-gray-200 transition-colors">
+            RESET SYSTEM
+        </button>
+
+    </div>
+</header>
+
+<div class="flex flex-1 h-full overflow-hidden">
+
+    <main class="flex-1 flex flex-col items-center justify-center bg-[#111111] p-8">
+
+        <div class="w-full max-w-5xl aspect-video bg-black relative flex items-center justify-center overflow-hidden shadow-2xl rounded-sm">
+
+            <div id="naDisplay"
+                class="text-[#444] text-sm tracking-widest uppercase font-bold hidden">
+                Awaiting Feed
+            </div>
+
+            <div id="workspaceContainer" class="hidden w-full h-full relative">
+
+                <video id="liveVideo" autoplay playsinline muted
+                    class="hidden w-full h-full object-cover"></video>
+
+                <img id="workspaceImage"
+                    src=""
+                    class="hidden w-full h-full object-cover">
+
+                <div id="boundingBox"
+                    class="absolute pointer-events-none hidden transition-all duration-200 bounding-box">
+
+                    <div id="boxLabel"
+                        class="absolute -top-6 left-[-2px] px-2 py-1 text-[10px] font-bold uppercase tracking-wider box-label">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="timelineContainer"
+            class="w-full max-w-5xl mt-4 hidden flex items-center gap-4 bg-[#0a0a0a] p-4 border border-[#222] rounded-md shadow-lg">
+
+            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                Timeline
+            </span>
+
+            <input type="range"
+                id="timeScrubber"
+                min="0"
+                max="0"
+                value="0"
+                class="flex-1 h-1 bg-transparent appearance-none cursor-pointer timeline-slider">
+
+            <span id="scrubberLabel"
+                class="text-[10px] text-white font-bold tracking-widest min-w-[120px] text-right">
+                LATEST
+            </span>
+
+        </div>
+
+    </main>
+
+    <aside class="w-[300px] bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col z-10">
+
+        <div class="p-4 border-b border-[#1a1a1a] flex flex-col gap-3">
+
+            <input type="text"
+                id="searchInput"
+                placeholder="Filter Catalogued Items..."
+                class="w-full bg-[#111111] border border-[#222] text-white text-[11px] px-3 py-2 focus:outline-none focus:border-[#444] transition-colors duration-300 rounded-sm">
+
+            <div class="flex gap-2">
+                <input type="text"
+                    id="dateFilter"
+                    placeholder="Date (e.g. 2026)"
+                    class="w-1/2 bg-[#111111] border border-[#222] text-white text-[10px] px-2 py-2 focus:outline-none focus:border-[#444] placeholder-[#444] transition-colors duration-300 rounded-sm">
+
+                <input type="text"
+                    id="timeFilter"
+                    placeholder="Time (e.g. 14:)"
+                    class="w-1/2 bg-[#111111] border border-[#222] text-white text-[10px] px-2 py-2 focus:outline-none focus:border-[#444] placeholder-[#444] transition-colors duration-300 rounded-sm">
+            </div>
+
+        </div>
+
+        <div class="flex-1 overflow-y-auto sidebar-scroll">
+            <ul id="catalogList" class="flex flex-col">
+            </ul>
+        </div>
+
+    </aside>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
