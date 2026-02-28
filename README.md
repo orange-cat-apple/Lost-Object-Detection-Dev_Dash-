@@ -1,6 +1,6 @@
 # **Spatial Search**
 
-**Demo Video:**
+**Our**
 
 **https://www.youtube.com/watch?v=EHRICfNJwWk**
 
@@ -29,8 +29,7 @@ This project is a computer vision application that tracks and catalogs objects o
 ## **Setup and Installation**
 
 1. **Clone the repository:**  
-   git clone \<repository\_url\>  
-   cd \<repository\_directory\>
+   git clone https://github.com/RealRuthvik/Lost-Object-Detection
 
 2. **Install dependencies:**  
    Ensure you have Python installed. Install the required packages:  
@@ -39,7 +38,7 @@ This project is a computer vision application that tracks and catalogs objects o
 3. **Download required assets:**  
    * Download the model.pt file from the Google Drive link above.  
    * Place model.pt in the root directory of the project.  
-   * Add a demo video file named demo.mp4 to the root directory.  
+   * Add a demo video file named demo.mp4 from https://drive.google.com/drive/folders/1ohFCQBKuIucftmpY3E44RqKcELh7SHiz in root directory.  
 4. **Run the server:**  
    Start the FastAPI application using Uvicorn.  
    uvicorn server:app \--host 127.0.0.1 \--port 8000 \--reload
