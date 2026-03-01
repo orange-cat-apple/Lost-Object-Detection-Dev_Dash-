@@ -52,8 +52,7 @@ def get_db():
 
 model = YOLO("model.pt")
 
-VIDEO_PATH = "demo.mp4"
-cap = cv2.VideoCapture(VIDEO_PATH)
+cap = cv2.VideoCapture("demo.mp4")
 
 latest_frame = None
 annotated_frame = None
@@ -204,7 +203,7 @@ def get_data(db: Session = Depends(get_db)):
             "w": log.w_coord,
             "h": log.h_coord,
             "conf": log.confidence,
-            "img": f"http://127.0.0.1:8000/uploads/{log.image_filename}"
+            "img": f"https://fullord-spatial-search.hf.space/uploads/{log.image_filename}"
         })
 
     return list(grouped_data.values())
