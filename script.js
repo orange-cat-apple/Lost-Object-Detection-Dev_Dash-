@@ -236,4 +236,3 @@ topRightLiveBtn.addEventListener('click', toggleLiveFeed);
 fetchCatalogData();
 toggleLiveFeed();
 setInterval(fetchCatalogData, 5000);
-
